@@ -23,11 +23,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
-        // Build participants section
+        // Build participants section (show list with remove icon)
         const participantsHtml =
           details.participants && details.participants.length
             ? `<ul class="participants-list">${details.participants
-                .map((p) => `<li class="participant-item">${p}</li>`)
+                .map(
+                  (p) =>
+                    `<li class="participant-item"><span class="participant-email">${p}</span><button class="remove-participant" data-activity="${encodeURIComponent(
+                      name
+                    )}" data-email="${encodeURIComponent(p)}" title="Remove participant">🗑️</button></li>`
+                )
                 .join("")}</ul>`
             : `<p class="info">No participants yet</p>`;
 
@@ -77,6 +82,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh activities so the newly-registered participant appears immediately
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
@@ -98,4 +105,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize app
   fetchActivities();
+
+  // Delegate click handler for remove buttons
+  activitiesList.addEventListener("click", async (event) => {
+    const btn = event.target.closest && event.target.closest(".remove-participant");
+    if (!btn) return;
+
+    const encodedActivity = btn.getAttribute("data-activity");
+    const encodedEmail = btn.getAttribute("data-email");
+    if (!encodedActivity || !encodedEmail) return;
+
+    const activityName = decodeURIComponent(encodedActivity);
+    const email = decodeURIComponent(encodedEmail);
+
+    if (!confirm(`Remove ${email} from ${activityName}?`)) return;
+
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
+
+      const result = await response.json();
+
+      if (response.ok) {
+        messageDiv.textContent = result.message;
+        messageDiv.className = "success";
+        // Refresh activities to update UI
+        fetchActivities();
+      } else {
+        messageDiv.textContent = result.detail || "Could not remove participant";
+        messageDiv.className = "error";
+      }
+
+      messageDiv.classList.remove("hidden");
+      setTimeout(() => messageDiv.classList.add("hidden"), 5000);
+    } catch (err) {
+      console.error("Error removing participant:", err);
+      messageDiv.textContent = "Failed to remove participant. Try again.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+    }
+  });
 });
